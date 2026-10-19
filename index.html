@@ -194,10 +194,12 @@ const storage = (function(){
 })();
 let progress = {};
 try{ progress = JSON.parse(storage.getItem('408_progress')||'{}'); }catch(e){ progress = {}; }
+// 过滤旧版本格式（曾误存 'correct'/'wrong'），只保留字母 A-D
+Object.keys(progress).forEach(k=>{ if(!['A','B','C','D'].includes(progress[k])) delete progress[k]; });
 
 function qid(q){ return q.year + '-' + q.num; }
 function isAnswered(q){ return progress[qid(q)] !== undefined; }
-function isWrong(q){ return progress[qid(q)] === 'wrong'; }
+function isWrong(q){ return progress[qid(q)] !== undefined && progress[qid(q)] !== q.answer; }
 
 function buildFiltered(){
   filtered = DATA.filter(q=>{
@@ -269,7 +271,7 @@ function renderQuestion(){
     el.addEventListener('click',()=>{
       const lt = el.dataset.lt;
       if(progress[qid(q)]!==undefined) return; // already answered
-      progress[qid(q)] = (lt===q.answer)?'correct':'wrong';
+      progress[qid(q)] = lt;
       storage.setItem('408_progress', JSON.stringify(progress));
       renderQuestion(); renderStat();
     });
@@ -398,27 +400,27 @@ function prow(name, done, total, rate){
 function renderProgress(){
   const total = DATA.length;
   const doneCount = DATA.filter(isAnswered).length;
-  const correct = DATA.filter(q=>progress[qid(q)]==='correct').length;
+  const correct = DATA.filter(q=>progress[qid(q)]===q.answer).length;
   const wrong = doneCount - correct;
   const rate = doneCount?Math.round(correct/doneCount*100):0;
   const subjStats = ['DS','CO','OS','CN'].map(s=>{
     const qs = DATA.filter(q=>q.subject===s);
     const d = qs.filter(isAnswered).length;
-    const c = qs.filter(q=>progress[qid(q)]==='correct').length;
+    const c = qs.filter(q=>progress[qid(q)]===q.answer).length;
     return {name:SUBJECT_NAME[s], total:qs.length, done:d, correct:c, rate:d?Math.round(c/d*100):0};
   });
   const years = [...new Set(DATA.map(q=>q.year))].sort((a,b)=>b-a);
   const yearStats = years.map(y=>{
     const qs = DATA.filter(q=>q.year===y);
     const d = qs.filter(isAnswered).length;
-    const c = qs.filter(q=>progress[qid(q)]==='correct').length;
+    const c = qs.filter(q=>progress[qid(q)]===q.answer).length;
     return {y, total:qs.length, done:d, correct:c, rate:d?Math.round(c/d*100):0};
   });
   const tm = {};
   DATA.forEach(q=>{
     if(!tm[q.topic]) tm[q.topic] = {topic:q.topic, total:0, done:0, correct:0};
     const t = tm[q.topic]; t.total++;
-    if(isAnswered(q)){ t.done++; if(progress[qid(q)]==='correct') t.correct++; }
+    if(isAnswered(q)){ t.done++; if(progress[qid(q)]===q.answer) t.correct++; }
   });
   const weak = Object.values(tm).filter(t=>t.done>=3).sort((a,b)=>(a.correct/a.done)-(b.correct/b.done)).slice(0,8);
 
